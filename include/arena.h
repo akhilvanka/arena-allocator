@@ -79,4 +79,67 @@ private:
 // ---- PoolAllocator ----
 // Fixed-size object pool — freelist stored inside free blocks (no overhead).
 // Object size must be >= sizeof(void*).
-} // namespace alloc
+
+class PoolAllocator {
+public:
+    PoolAllocator(void* buf, size_t buf_size, size_t object_size,
+                  size_t align = DEFAULT_ALIGN) noexcept
+        : object_size_(align_up(std::max(object_size, sizeof(void*)), align)),
+          capacity_(buf_size / object_size_),
+          free_count_(capacity_)
+    {
+        // Build freelist
+        head_ = nullptr;
+        uint8_t* p = static_cast<uint8_t*>(buf);
+        for (size_t i = capacity_; i-- > 0;) {
+            void** slot = reinterpret_cast<void**>(p + i * object_size_);
+            *slot = head_;
+            head_ = slot;
+        }
+    }
+
+    void* allocate() noexcept {
+        if (!head_) return nullptr;
+        void* p = head_;
+        head_   = *static_cast<void**>(head_);
+        --free_count_;
+        return p;
+    }
+
+    void deallocate(void* p) noexcept {
+        if (!p) return;
+        *static_cast<void**>(p) = head_;
+        head_ = p;
+        ++free_count_;
+    }
+
+    template<typename T, typename... Args>
+    T* construct(Args&&... args) {
+        void* p = allocate();
+        if (!p) return nullptr;
+        return new(p) T(std::forward<Args>(args)...);
+    }
+
+    template<typename T>
+    void destroy(T* p) noexcept {
+        if (!p) return;
+        p->~T();
+        deallocate(p);
+    }
+
+    size_t free_count()  const noexcept { return free_count_; }
+    size_t capacity()    const noexcept { return capacity_; }
+    size_t used()        const noexcept { return capacity_ - free_count_; }
+    size_t object_size() const noexcept { return object_size_; }
+
+    PoolAllocator(const PoolAllocator&)            = delete;
+    PoolAllocator& operator=(const PoolAllocator&) = delete;
+
+private:
+    size_t  object_size_;
+    size_t  capacity_;
+    size_t  free_count_;
+    void*   head_{nullptr};
+};
+
+// ---- StackAllocator with rewind markers ----

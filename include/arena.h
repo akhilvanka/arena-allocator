@@ -1,26 +1,4 @@
 #pragma once
-/// Deterministic memory allocators for real-time and embedded systems.
-///
-/// In flight software, dynamic allocation with malloc/free is forbidden during
-/// mission-critical phases because:
-///   1. Non-deterministic latency (OS may call sbrk, trigger OOM handling)
-///   2. Heap fragmentation degrades over time
-///   3. malloc has no worst-case guarantee
-///
-/// These allocators solve the problem by pre-allocating a fixed backing store:
-///
-///   BumpAllocator   — O(1) alloc, bulk-free only (arena reset). Zero overhead.
-///                     Ideal for per-frame or per-request scratch memory.
-///
-///   PoolAllocator   — O(1) alloc AND free for fixed-size objects. Freelist
-///                     embedded directly in the free blocks — zero overhead.
-///                     Ideal for messages, tasks, packets.
-///
-///   StackAllocator  — LIFO alloc/free with rewind markers. Enables nested
-///                     scopes that each get a contiguous scratch region.
-///
-/// All allocators are non-copyable and operate on caller-provided backing
-/// storage so they can live entirely on the stack or in static memory.
 #include <cstddef>
 #include <cstdint>
 #include <cassert>
